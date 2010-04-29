@@ -5,10 +5,68 @@ with 'MooseX::Getopt';
 use Capture::Tiny qw(tee);
 our $VERSION = '0.33';
 
-has 'action' => ( is => 'rw', isa => 'Str', required => 1 );
-has 'filename' =>
-    ( is => 'rw', isa => 'Path::Class::File', required => 1, coerce => 1, );
-has 'verbose' => ( is => 'rw', isa => 'Bool', default => 0 );
+has help => (
+    traits        => [ qw/ Getopt / ],
+    cmd_aliases   => 'h',
+    cmd_flag      => 'help',
+    isa           => 'Bool',
+    is            => 'ro',
+    default       => 0,
+    documentation => "You're soaking it in",
+);
+
+has 'verbose' => (
+    traits        => [ qw/ Getopt / ],
+    cmd_aliases   => 'v',
+    cmd_flag      => 'verbose',
+    is            => 'ro',
+    isa           => 'Bool',
+    default       => 0,
+    documentation => 'Display Configure and make output',
+);
+
+has 'action' => (
+    traits        => [ qw/ Getopt / ],
+    cmd_aliases   => 'a',
+    cmd_flag      => 'action',
+    is            => 'ro',
+    isa           => 'Str',
+    required      => 1,
+    documentation => 'Any of: file_added, file_removed, perl_fails, miniperl_fails',
+ 
+);
+
+{
+my $configure_default = q[-des -Dusedevel -Doptimize="-g" -Dcc=ccache\ gcc -Dld=gcc];
+has 'configure_options' => (
+    traits        => [ qw/ Getopt / ],
+    cmd_aliases   => 'c',
+    cmd_flag      => 'configure-options',
+    is            => 'ro',
+    isa           => 'Str',
+    required      => 0,
+    default       => $configure_default,
+    documentation => "Our ./Configure options, default: $configure_default",
+);
+}
+
+has 'filename' => (
+    traits        => [ qw/ Getopt / ],
+    cmd_aliases   => 'f',
+    cmd_flag      => 'filename',
+    is            => 'ro',
+    isa           => 'Path::Class::File',
+    required      => 1,
+    coerce        => 1,
+    documentation => "The test file to run with the *perl_fails actions",
+    trigger       => sub {
+        my ($self, $file) = @_;
+
+        $self->_error("There's no file $file") unless -f $file;
+        $self->_error("I can't read the file $file") unless -r $file;
+        return;
+    },
+);
 
 sub run {
     my $self   = shift;
@@ -59,15 +117,14 @@ sub _before_perlX {
         $^X . q{ -pi -e "s|#   include <asm/page.h>||" ext/IPC/SysV/SysV.xs})
         if -f 'ext/IPC/SysV/SysV.xs';
 
-    $self->_call_or_error(
-        'sh Configure -des -Dusedevel -Doptimize="-g" -Dcc=ccache\ gcc -Dld=gcc'
-    );
+    $self->_call_or_error('sh Configure ' . $self->configure_options);
 
     -f 'config.sh' || $self->_error('Missing config.sh');
 
     return;
 }
 
+# Cleam up after the build
 sub _after_perlX {
     my $self = shift;
 
@@ -79,6 +136,7 @@ sub _after_perlX {
     return;
 }
 
+# Run some target/perl
 sub run_perlX {
     my ($self, $whatperl) = @_;
     my $filename = $self->filename;
@@ -99,22 +157,16 @@ before $_ => \&_after_perlX for qw< perl_fails miniperl_fails >;
 
 sub perl_fails {
     my $self     = shift;
-    my $filename = $self->filename;
 
     $self->_call_or_error('make');
-    my $code = $self->run_perlX('perl');
-
-    return $code;
+    return $self->run_perlX('perl');
 }
 
 sub miniperl_fails {
     my $self     = shift;
-    my $filename = $self->filename;
-
+    
     $self->_call_or_error('make miniperl');
-    my $code = $self->run_perlX('miniperl');
-
-    return $code;
+    return $self->run_perlX('miniperl');
 }
 
 sub _describe {
