@@ -190,7 +190,7 @@ sub _describe {
 
 sub _call {
     my ( $self, $command ) = @_;
-    $self->_message("calling $command");
+    $self->_message("calling $command") if $self->verbose;
     my $status;
     my ( $stdout, $stderr ) = tee {
         $status = system($command);
