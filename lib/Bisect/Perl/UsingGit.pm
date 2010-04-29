@@ -45,19 +45,19 @@ sub perl_fails {
 
     # Fix configure error in makedepend: unterminated quoted string
     # http://perl5.git.perl.org/perl.git/commitdiff/a9ff62
-    $self->_call_or_error(q{perl -pi -e "s|##\`\"|##'\`\"|" makedepend.SH})
+    $self->_call_or_error($^X . q{ -pi -e "s|##\`\"|##'\`\"|" makedepend.SH})
         if -f 'makedepend.SH';
 
     # Allow recent gccs (4.2.0 20060715 onwards) to build perl.
     # It switched from '<command line>' to '<command-line>'.
     # http://perl5.git.perl.org/perl.git/commit/d64920
     $self->_call_or_error(
-        q{perl -pi -e "s|command line|command-line|" makedepend.SH})
+        $^X . q{ -pi -e "s|command line|command-line|" makedepend.SH})
         if -f 'makedepend.SH';
 
     # http://perl5.git.perl.org/perl.git/commit/205bd5
     $self->_call_or_error(
-        q{perl -pi -e "s|#   include <asm/page.h>||" ext/IPC/SysV/SysV.xs})
+        $^X . q{ -pi -e "s|#   include <asm/page.h>||" ext/IPC/SysV/SysV.xs})
         if -f 'ext/IPC/SysV/SysV.xs';
 
     $self->_call_or_error(
