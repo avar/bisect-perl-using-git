@@ -95,10 +95,12 @@ sub file_removed {
     return !$self->file_added($filename);
 }
 
+# Things to run before we `make' perl. There are a lot of bugs in old
+# perls that can keep us from building them on new platforms.
 sub _before_perlX {
     my $self     = shift;
 
-    $self->_call_or_error('git clean -dxf');
+    $self->_call_or_error('git clean -dxf' . $self->_maybe_shutup);
 
     # Fix configure error in makedepend: unterminated quoted string
     # http://perl5.git.perl.org/perl.git/commitdiff/a9ff62
@@ -117,18 +119,18 @@ sub _before_perlX {
         $^X . q{ -pi -e "s|#   include <asm/page.h>||" ext/IPC/SysV/SysV.xs})
         if -f 'ext/IPC/SysV/SysV.xs';
 
-    $self->_call_or_error('sh Configure ' . $self->configure_options);
+    $self->_call_or_error('sh Configure ' . $self->configure_options . $self->_maybe_shutup);
 
     -f 'config.sh' || $self->_error('Missing config.sh');
 
     return;
 }
 
-# Cleam up after the build
+# Clean up after the build
 sub _after_perlX {
     my $self = shift;
 
-    $self->_call_or_error('git clean -dxf');
+    $self->_call_or_error('git clean -dxf' . $self->_maybe_shutup);
     $self->_call_or_error('git checkout ext/IPC/SysV/SysV.xs')
         if -f 'ext/IPC/SysV/SysV.xs';
     $self->_call_or_error('git checkout makedepend.SH') if -f 'makedepend.SH';
@@ -153,20 +155,23 @@ sub run_perlX {
 }
 
 before $_ => \&_before_perlX for qw< perl_fails miniperl_fails >;
-before $_ => \&_after_perlX for qw< perl_fails miniperl_fails >;
 
 sub perl_fails {
     my $self     = shift;
 
-    $self->_call_or_error('make');
-    return $self->run_perlX('perl');
+    $self->_call_or_error('make' . $self->_maybe_shutup);
+    my $code = $self->run_perlX('perl');
+    $self->_after_perlX();
+    return $code;
 }
 
 sub miniperl_fails {
     my $self     = shift;
     
-    $self->_call_or_error('make miniperl');
-    return $self->run_perlX('miniperl');
+    $self->_call_or_error('make miniperl' . $self->_maybe_shutup);
+    my $code = $self->run_perlX('miniperl');
+    $self->_after_perlX();
+    return $code;
 }
 
 sub _describe {
@@ -213,6 +218,12 @@ sub _error {
     my ( $self, $text ) = @_;
     $self->_message($text);
     exit 125;
+}
+
+sub _maybe_shutup {
+    my $self = shift;
+    my $verbose = $self->verbose;
+    return $verbose ? '' : ' >/dev/null 2>&1'
 }
 
 1;
