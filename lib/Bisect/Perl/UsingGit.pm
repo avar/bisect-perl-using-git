@@ -37,9 +37,8 @@ sub file_removed {
     return !$self->file_added($filename);
 }
 
-sub perl_fails {
+sub _before_perlX {
     my $self     = shift;
-    my $filename = $self->filename;
 
     $self->_call_or_error('git clean -dxf');
 
@@ -66,20 +65,54 @@ sub perl_fails {
 
     -f 'config.sh' || $self->_error('Missing config.sh');
 
-    $self->_call_or_error('make');
-    -x './perl' || $self->_error('No ./perl executable');
+    return;
+}
 
-    my $code = $self->_call("./perl -Ilib $filename")->{code};
+sub _after_perlX {
+    my $self = shift;
+
+    $self->_call_or_error('git clean -dxf');
+    $self->_call_or_error('git checkout ext/IPC/SysV/SysV.xs')
+        if -f 'ext/IPC/SysV/SysV.xs';
+    $self->_call_or_error('git checkout makedepend.SH') if -f 'makedepend.SH';
+
+    return;
+}
+
+sub run_perlX {
+    my ($self, $whatperl) = @_;
+    my $filename = $self->filename;
+
+    -x "./$whatperl" || $self->_error('No ./$whatperl executable');
+    my $code = $self->_call("./$whatperl -Ilib $filename")->{code};
     $self->_message("Status: $code");
     if ( $code < 0 || $code >= 128 ) {
         $self->_message("Changing code to 127 as it is < 0 or >= 128");
         $code = 127;
     }
 
-    $self->_call_or_error('git clean -dxf');
-    $self->_call_or_error('git checkout ext/IPC/SysV/SysV.xs')
-        if -f 'ext/IPC/SysV/SysV.xs';
-    $self->_call_or_error('git checkout makedepend.SH') if -f 'makedepend.SH';
+    return $code;
+}
+
+before $_ => \&_before_perlX for qw< perl_fails miniperl_fails >;
+before $_ => \&_after_perlX for qw< perl_fails miniperl_fails >;
+
+sub perl_fails {
+    my $self     = shift;
+    my $filename = $self->filename;
+
+    $self->_call_or_error('make');
+    my $code = $self->run_perlX('perl');
+
+    return $code;
+}
+
+sub miniperl_fails {
+    my $self     = shift;
+    my $filename = $self->filename;
+
+    $self->_call_or_error('make miniperl');
+    my $code = $self->run_perlX('miniperl');
 
     return $code;
 }
