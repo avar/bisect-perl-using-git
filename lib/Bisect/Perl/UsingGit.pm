@@ -32,7 +32,7 @@ has 'action' => (
     is            => 'ro',
     isa           => 'Str',
     required      => 1,
-    documentation => 'Any of: file_added, file_removed, perl_fails, miniperl_fails',
+    documentation => 'Any of: file-added, file-removed, perl-fail, miniperl-fail, perl-ok, miniperl-ok',
  
 );
 
@@ -72,6 +72,9 @@ sub run {
     my $self   = shift;
     my $action = $self->action;
     $self->_describe();
+
+    $action =~ s/-/_/g;
+    $action =~ s/fails$/fail/g;
 
     exit $self->$action;
 }
@@ -154,9 +157,9 @@ sub run_perlX {
     return $code;
 }
 
-before $_ => \&_before_perlX for qw< perl_fails miniperl_fails >;
+before $_ => \&_before_perlX for qw< perl_fail miniperl_fail >;
 
-sub perl_fails {
+sub perl_fail {
     my $self     = shift;
 
     $self->_call_or_error('make' . $self->_maybe_shutup);
@@ -165,7 +168,7 @@ sub perl_fails {
     return $code;
 }
 
-sub miniperl_fails {
+sub miniperl_fail {
     my $self     = shift;
     
     $self->_call_or_error('make miniperl' . $self->_maybe_shutup);
@@ -173,6 +176,9 @@ sub miniperl_fails {
     $self->_after_perlX();
     return $code;
 }
+
+sub perl_ok     { int not shift->perl_fail }
+sub miniperl_ok { int not shift->miniperl_fail }
 
 sub _describe {
     my $self     = shift;
