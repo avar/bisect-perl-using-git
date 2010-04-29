@@ -4,3 +4,4 @@ lib/Bisect/Perl/UsingGit.pm
 Makefile.PL
 MANIFEST			This list of files
 t/pod.t
+t/test-exit.t
